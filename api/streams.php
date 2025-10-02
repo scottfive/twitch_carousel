@@ -1,7 +1,6 @@
 <?php
 /**
- * Project: Twitch Stream Carousel
- * api/streams.php
+ * streams.php
  *
  * Lightweight backend endpoint that queries Twitch Helix Get Streams, then filters by:
  * - game_id (required)
@@ -18,23 +17,9 @@
  *
  * Example:
  * /api/streams.php?game_id=494131&keywords=nightmares,hablamos&tags=español&limit=24
- *
- * Copyright (c) 2025 ScottFive
- * This source code is licensed under the MIT license found in the LICENSE file in the project root.
- *
- * @license MIT
- * @link https://github.com/scottfive/twitch-carousel
- * @author ScottFive
- * @since 2025-10-02
  */
 
-	/**
-	 * Make sure we have a config file
-	 */
-	if (is_file(__DIR__ . '/../config.php')) {
-		require_once __DIR__ . '/../config.php';
-	}
-
+require_once __DIR__ . '/../config.php';
 
 
 /**
@@ -255,13 +240,16 @@ while (count($collected) < $limit) {
 		if ($matchesKeywords && $matchesTags) {
 			$thumbnailTemplate = (string)($oStream['thumbnail_url'] ?? '');
 
-			$collected[] = [
-				'user_name' => $streamUserName,
-				'user_login' => (string)($oStream['user_login'] ?? ''),
-				'title' => $streamTitle,
-				'thumbnail_url' => $thumbnailTemplate, // e.g. ...-{width}x{height}.jpg
-				'tags' => $streamTags,
-			];
+			// use the user_login as a key so we can weed out duplicate entries returned from twitch
+			if( !array_key_exists($oStream['user_login'], $collected ) ){
+				$collected[$oStream['user_login']] = [
+					'user_name' => $streamUserName,
+					'user_login' => (string)($oStream['user_login'] ?? ''),
+					'title' => $streamTitle,
+					'thumbnail_url' => $thumbnailTemplate, // e.g. ...-{width}x{height}.jpg
+					'tags' => $streamTags,
+				];
+			}
 			if (count($collected) >= $limit) break 2;
 		}
 	}
@@ -274,7 +262,7 @@ while (count($collected) < $limit) {
 // package up the list in JSON
 $response = json_encode([
 	'count' => count($collected),
-	'items' => $collected,
+	'items' => array_values($collected),		// redo the indeces so they're numerical for the client
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 echo $response;
@@ -289,4 +277,5 @@ if ($oRedis instanceof Redis) {
 		// ignore cache store errors
 		write_syslog('redis error' . $e.message);
 	}
+
 }
